@@ -13,7 +13,7 @@ client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag} !`);
 });
 
-client.on("message", message => {
+client.on("message", async (message) => {
 
     let args = message.content.trim().split(/ +/g)
 
@@ -74,8 +74,8 @@ client.on("message", message => {
                     const min = new Date().getMinutes()
                     
                     const embed = new Discord.MessageEmbed()
-                    .setColor('#1e90ff')
-                    .setTitle("DarkFly Support")
+                    .setColor(config.PanelColor)
+                    .setTitle(config.PanelName)
                     .setDescription('Veuillez réagir '+config.ReactEmoji+' pour ouvrir un tickets.')
                     .setFooter(config.BotName +'| Dernier Actualisation : '+hour+':'+min, client.user.avatarURL());
                     
@@ -93,53 +93,8 @@ client.on("message", message => {
                 }, 5000);
             } else if(bdd.Status == true){
 
-                const embed = new Discord.MessageEmbed()
-                    .setColor('#f0932b')
-                    .setDescription('`Voulez vous changer de channel de tickets ?`')
-                    .setTimestamp()
-                    .setFooter(config.BotName, client.user.avatarURL());
-                message.channel.send(embed).then(function (message) {
-                    message.react(":white_check_mark:");
-                    message.react("❎");
-
-                    message.awaitReactions((reaction, user) => user.id == message.author.id && (reaction.emoji.name == '728291349711028275' || reaction.emoji.name == '728291366374998057'),
-                            { max: 1, time: 30000 }).then(collected => {
-                                const members = message.guild.members.cache.get(message.reactions.message.author.id);
-                                    if(members.user.bot) return;
-                                    if (collected.first().emoji.name == '728291349711028275') {
-                                        bdd.Status = bdd.Status = false;
-                                        SaveBdd()
-                                        
-                                        const embed = new Discord.MessageEmbed()
-                                        .setColor('#f1c40f')
-                                        .setDescription('`Action Validé`')
-                                        .setTimestamp()
-                                        .setFooter(config.BotName, client.user.avatarURL());
-                                    message.channel.send(embed)
-
-                                    return;
-                                    }
-                                    else {
-                                        message.reactions.removeAll()
-                                        const embed = new Discord.MessageEmbed()
-                                        .setColor('#c0392b')
-                                        .setDescription('`Action Annulé`')
-                                        .setTimestamp()
-                                        .setFooter(config.BotName, client.user.avatarURL());
-                                    message.channel.send(embed)
-                                    }
-                            }).catch((err) => {
-                                   message.reactions.removeAll()
-                                   const embed = new Discord.MessageEmbed()
-                                        .setColor('#c0392b')
-                                        .setDescription('`Action Annulé`')
-                                        .setTimestamp()
-                                        .setFooter(config.BotName, client.user.avatarURL());
-                                    message.channel.send(embed)
-                                    console.log(err)
-                            });
-                })
-                return;
+                ChangeTicket(message);
+                
             }
         }, 10000);
     } else {
@@ -180,7 +135,9 @@ client.on('messageReactionAdd', async (reaction,user) => {
             }
             SaveBdd()
 
-            reaction.remove(user.id)
+            reaction.remove().then(function (message) {
+                message.message.react(config.ReactEmoji);
+              })
 
               reaction.message.guild.channels.create('ticket-' + bdd.NumbersTicket+bdd.NumberTicket, {
                             type: "text",
@@ -193,6 +150,11 @@ client.on('messageReactionAdd', async (reaction,user) => {
                         {
                             deny: 'VIEW_CHANNEL',
                             id: reaction.message.guild.id
+                        },
+                        {
+                            allow: 'VIEW_CHANNEL',
+                            deny: 'ADD_REACTIONS',
+                            id: config.StaffID
                         }
                     ]
         }).then(msg => {
@@ -222,7 +184,7 @@ if(TicektsId.includes(reaction.message.channel.id)) {
             message.react("✅");
             message.react("❎");
           });
-    } else if(reaction.emoji.id === "✅"){
+    } else if(reaction.emoji.name === "✅"){
         reaction.message.reactions.removeAll()
         const embed = new Discord.MessageEmbed()
             .setColor('#009432')
@@ -234,7 +196,7 @@ if(TicektsId.includes(reaction.message.channel.id)) {
         setTimeout(() => {
             reaction.message.channel.delete();
         }, 5000);
-    } else if(reaction.emoji.id === "❎"){
+    } else if(reaction.emoji.name === "❎"){
         reaction.message.reactions.removeAll()
         const embed = new Discord.MessageEmbed()
             .setColor('#c0392b')
@@ -250,4 +212,50 @@ async function SaveBdd() {
     fs.writeFile(`./Bdd/Bdd.json`, JSON.stringify(bdd), err => {
         if(err) console.log(err)
         })
+}
+
+
+async function AwaitReact(message, author, time, validReactions) {
+    time *= 1000;
+    for (const reaction of validReactions) await message.react(reaction);
+    const filter = (reaction, user) => validReactions.includes(reaction.emoji.name) && user.id === author.id;
+    return message
+        .awaitReactions(filter, { max: 1, time: time})
+        .then(collected => collected.first() && collected.first().emoji.name);
+}
+
+async function ChangeTicket(message) {
+    const chooseArr = ["✅","❎"]
+    const embed = new Discord.MessageEmbed()
+                    .setColor('#f0932b')
+                    .setDescription('`Voulez vous changer de channel de tickets ?`')
+                    .setTimestamp()
+                    .setFooter(config.BotName, client.user.avatarURL());
+                const m = await message.channel.send(embed);
+                const reacted = await AwaitReact(m,message.author,10,chooseArr);
+                const result = await getResult(reacted);
+
+                message.channel.send(result)
+                m.reactions.removeAll()
+                
+                function getResult(me) {
+                    if(me === "❎") {
+                        const embed = new Discord.MessageEmbed()
+                            .setColor('#c0392b')
+                            .setDescription('`Action Annulé`')
+                            .setTimestamp()
+                            .setFooter(config.BotName, client.user.avatarURL());
+                        return embed
+                    }else if (me === "✅") {
+                        const embed = new Discord.MessageEmbed()
+                            .setColor('#2ecc71')
+                            .setDescription('`Action validé, veuillez re set le channel`')
+                            .setTimestamp()
+                            .setFooter(config.BotName, client.user.avatarURL());
+                            bdd.ChannelSet = false
+                            bdd.Status = false
+                            SaveBdd()
+                        return embed
+                    }
+                }
 }
