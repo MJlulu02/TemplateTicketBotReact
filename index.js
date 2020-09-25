@@ -19,15 +19,7 @@ client.on("message", async (message) => {
 
     if(message.content.startsWith(config.prefix +"close")) {
         if(TicektsId.includes(message.channel.id)) {
-            const embed = new Discord.MessageEmbed()
-            .setColor('#009432')
-            .setDescription('`Voulez vous fermez le ticket ?`')
-            .setTimestamp()
-            .setFooter(config.BotName, client.user.avatarURL());
-        message.channel.send(embed).then(function (message) {
-            message.react(":white_check_mark:");
-            message.react("❎");
-          });
+            CloseTicket(message)
         }
     }
 
@@ -127,9 +119,9 @@ client.on('messageReactionAdd', async (reaction,user) => {
             bdd.NumberTicket++;
             SaveBdd()
             if (bdd.NumberTicket >= 10) {
-                bdd.NumbersTicket = "00";
+                bdd.NumbersTicket = "00"
             }else if (bdd.NumberTicket >= 100) {
-                bdd.NumbersTicket = "0";
+                bdd.NumbersTicket = "0"
             }else if (bdd.NumberTicket >= 1000) {
                 bdd.NumberTicket = " "
             }
@@ -175,36 +167,36 @@ client.on('messageReactionAdd', async (reaction,user) => {
 
 if(TicektsId.includes(reaction.message.channel.id)) {
     if(reaction.emoji.name === "🔒"){
-        const embed = new Discord.MessageEmbed()
-            .setColor('#009432')
-            .setDescription('`Voulez vous fermez le ticket ?`')
-            .setTimestamp()
-            .setFooter(config.BotName, client.user.avatarURL());
-        reaction.message.channel.send(embed).then(function (message) {
-            message.react("✅");
-            message.react("❎");
-          });
-    } else if(reaction.emoji.name === "✅"){
-        reaction.message.reactions.removeAll()
-        const embed = new Discord.MessageEmbed()
-            .setColor('#009432')
-            .setDescription('`Le ticket va ce fermer dans 5 secondes`')
-            .setTimestamp()
-            .setFooter(config.BotName, client.user.avatarURL());
-        reaction.message.channel.send(embed)
-        reaction.message.channel.setName("Ticket-Closed")
-        setTimeout(() => {
-            reaction.message.channel.delete();
-        }, 5000);
-    } else if(reaction.emoji.name === "❎"){
-        reaction.message.reactions.removeAll()
-        const embed = new Discord.MessageEmbed()
-            .setColor('#c0392b')
-            .setDescription('`Action Annulé`')
-            .setTimestamp()
-            .setFooter(config.BotName, client.user.avatarURL());
-        reaction.message.channel.send(embed)
-    }
+        reaction.message.react('✅')
+        const chooseArr = ["✅","❎"]
+       
+        const reacted = await AwaitReact(reaction.message,user,10,chooseArr)
+        const result = await getResult(reacted);
+
+
+        if (reacted == "✅") {
+            reaction.message.channel.send(result)
+        }
+
+                function getResult(me) {
+                    if (me === "✅") {
+                        const embed = new Discord.MessageEmbed()
+                        .setColor('#009432')
+                        .setDescription('`Le ticket va ce fermer dans 5 secondes`')
+                        .setTimestamp()
+                        .setFooter(config.BotName, client.user.avatarURL());
+                        reaction.message.reactions.removeAll()
+                        reaction.message.channel.setName("Ticket-Closed")
+                        setTimeout(() => {
+                            reaction.message.channel.delete();
+                        }, 5000);
+                        return embed
+                    } else if(me === "❎") {
+                        reaction.message.reactions.removeAll()
+                        reaction.message.react('🔒')
+                    }
+                }
+            }
 }
 });
 
@@ -222,6 +214,43 @@ async function AwaitReact(message, author, time, validReactions) {
     return message
         .awaitReactions(filter, { max: 1, time: time})
         .then(collected => collected.first() && collected.first().emoji.name);
+}
+
+async function CloseTicket(message) {
+    const chooseArr = ["✅","❎"]
+        const embed = new Discord.MessageEmbed()
+                .setColor('#009432')
+                .setDescription('`Voulez vous fermez le ticket ?`')
+                .setTimestamp()
+                .setFooter(config.BotName, client.user.avatarURL());
+            const m = await message.channel.send(embed);
+            const reacted = await AwaitReact(m,message.author,10,chooseArr);
+            const result = await getResult(reacted);
+
+            message.channel.send(result)
+            m.reactions.removeAll()
+                
+                function getResult(me) {
+                    if(me === "❎") {
+                        const embed = new Discord.MessageEmbed()
+                            .setColor('#c0392b')
+                            .setDescription('`Action Annulé`')
+                            .setTimestamp()
+                            .setFooter(config.BotName, client.user.avatarURL());
+                        return embed
+                    }else if (me === "✅") {
+                        const embed = new Discord.MessageEmbed()
+                        .setColor('#009432')
+                        .setDescription('`Le ticket va ce fermer dans 5 secondes`')
+                        .setTimestamp()
+                        .setFooter(config.BotName, client.user.avatarURL());
+                        message.channel.setName("Ticket-Closed")
+                        setTimeout(() => {
+                            message.channel.delete();
+                        }, 5000);
+                        return embed
+                    }
+                }
 }
 
 async function ChangeTicket(message) {
